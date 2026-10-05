@@ -1,4 +1,16 @@
-# Phase 1 architecture
+# Phase 1 + Phase 2 architecture
+
+## Phase 2 live analysis
+`analysis/LiveAnalysis.kt` provides immutable ErrorPoint/LiveAnalysis snapshots, a pure Kotlin LiveAnalyzer, GT-centered spherical azimuthal-equidistant offsets, and gap-preserving min/max chart reduction. Engine feeds only accepted Measuring samples into it. The service publishes analysis through StateFlow on location/timer updates; raw observations remain independently journaled. Rolling statistics advance with the monotonic timer even if no fixes arrive. Early stop freezes the elapsed analysis interval; scheduled completion clamps to the deadline.
+
+`ui/LiveDashboard.kt` renders cm-based CEP95, acquisition diagnostics, Compose Canvas timeline and equal-scale scatter without adding a chart dependency. R7 empirical inclusion is displayed separately from a statistical confidence interval. Native Canvas text only labels axes; all calculations remain framework-free. Timeline reduction retains first/last/min/max per chunk and breaks lines across >3s gaps; scatter drawing samples at most 2000 points including largest error and last fix. Neither reduction changes statistics/export. Screen-on is a user-controlled Activity view flag, while service/wakelock ownership remains unchanged.
+
+`recording/SessionReader.kt` reconstructs LiveAnalysis from GT and saved coordinates (never blindly trusts imported statistics). Android JsonReader streams exported JSON and skips raw arrays; journal reading processes individual lines. Interrupted/corrupt sessions are explicitly labeled and not silently called complete. The import limit is 50,000 location samples. The UI supports local history, selected-session export and A/B JSON comparison. Summary gains liveAnalysis diagnostics; metadata gains GT provenance/declared uncertainty/analysis definitions. All additions are backward-compatible schema 1 fields. Raw data and metre units remain unchanged.
+
+GT uncertainty is descriptive user metadata, not a calibrated error bound to add to/subtract from observations. Occupied-second coverage is an acquisition diagnostic, not confidence. The distance model remains the documented Phase 1 mean-radius spherical approximation; centimetre display does not turn it into a survey-grade ellipsoid solver.
+
+Compose drawing reference: https://developer.android.com/develop/ui/compose/graphics/draw/overview
+Reported accuracy definition: https://developer.android.com/reference/android/location/Location#getAccuracy()
 
 ## Repository inspection
 Initial repository contained only .git (no commits, Android source, conventions or Gradle configuration). A single app module is created. Versions are pinned: Gradle 8.7, AGP 8.5.2, Kotlin/Compose compiler plugin 2.0.21; compile/target SDK 34, min SDK 30 (including Android 11 TC58 deployments). Target 34 is for direct-install benchmark deployment, not a claim of current Play publishing compliance. Java 17 bytecode; local Android Studio JBR used for builds. Dependencies: AndroidX Compose Material3, activity-compose, lifecycle ViewModel, core, JUnit and test-only org.json. No maps, vendor SDK or ML dependency in Phase 1. Version upgrade lint advisories are retained; dependencies are pinned to the installed API 34/AGP compatibility set, not blindly upgraded to versions requiring a newer compile SDK.

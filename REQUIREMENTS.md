@@ -1,7 +1,14 @@
 # GNSS Benchmark requirements
 
+## Phase 2 — 실시간 분석 추가 (2026-10-05)
+Phase 1 baseline을 유지하며 Static Benchmark 화면에 실시간 cumulative CEP95(cm/m), mean/median/RMSE/MAX, 최근 60초 rolling CEP95, 시간별 actual error/reported accuracy/rolling CEP95 그래프, GT 중심 동서/남북 산점도를 구현한다. warm-up 표본은 모든 분석에서 제외한다. 대시보드는 측정 시작 후 자동 노출하고 완료 후 같은 결과를 유지한다.
+
+CEP95는 관측 오차의 R7 percentile이지 95% 신뢰구간이나 미래 보장값이 아니다. cm 표시는 단위 변환이며 cm급 성능을 암시하지 않는다. GT 측량 방법과 선택적인 불확실성(m)을 기록하고 미입력은 미확인으로 표시한다. GT 불확실성을 실제 오차에 임의 가감하지 않는다. 누적 표본 수/마지막 fix 나이/1초 구간 수신 비율/최대 무수신 간격을 함께 표시한다. 수신 비율은 fix가 한 개 이상인 1초 bin / 경과한 측정 bin이며 독립 표본 수·정확도 신뢰도가 아니다. 정상 30분 이상 완료와 부분 측정/오류/준비 중을 구분하되 통계적으로 검증된 신뢰 등급을 만들어내지 않는다.
+
+저장 세션 재열람·선택 export와 타 기기 JSON 결과 불러오기/비교를 지원한다. 원본 CSV/JSON을 유지하고 분석 정의 및 summary를 추가한다. 그래프는 앱의 Compose Canvas로 그리며 통계는 pure Kotlin에서 계산한다. rolling window (t-60s,t], 첫 60초는 가용 구간; gap에서 line을 끊고 warm-up/no-fix에는 통계를 만들지 않는다. 거리 구면 근사 한계와 시간 상관 때문에 표본 수만으로 cm 정확도를 보장할 수 없음을 설명한다. 실제 30분 benchmark는 기본 warm-up 포함 총 35분이다.
+
 ## 1. Project Goal
-Zebra TC58 / TC501에 **동일 APK**를 설치해 독립 측정한 데이터를 export하여 GNSS 성능 및 향후 오프라인 보정 효과를 정량 비교한다. 단순 지도 앱이 아니다. Ground Truth(GT) 기준 실제 오차, 장시간 안정성, classical/IMU/ML/hybrid 개선량, CPU/GPU/NPU 실행 비용을 재현 가능한 데이터로 평가한다. 이번 구현 범위는 Phase 1이다.
+Zebra TC58 / TC501에 **동일 APK**를 설치해 독립 측정한 데이터를 export하여 GNSS 성능 및 향후 오프라인 보정 효과를 정량 비교한다. 단순 지도 앱이 아니다. Ground Truth(GT) 기준 실제 오차, 장시간 안정성, classical/IMU/ML/hybrid 개선량, CPU/GPU/NPU 실행 비용을 재현 가능한 데이터로 평가한다. Phase 1 수집 기반 위에 Phase 2 실시간 분석을 구현한다.
 
 ## 2. Target Devices
 TC58 및 TC501. 제조사·모델·OS·API·Build hardware·GNSS model/year는 public API runtime 값만 표시한다. 칩셋, 지원 band, 정밀도를 모델명으로 추정하거나 hard-code하지 않는다. DETECTED = API 관측; SPECIFICATION = 출처가 있는 제조사 자료(Phase 1 자동 조회 없음); DERIVED = 관측으로 계산한 값. 관측하지 못함은 미지원 증거가 아니다.
@@ -31,8 +38,8 @@ P0 Raw → P1 outlier/jump rejection → P2 EMA/Kalman → P3 C/N0, constellatio
 Single Activity / Jetpack Compose. ui, gnss, analysis, recording, model 및 session 패키지. GNSS는 Android adapter, 계산/상태 전이는 pure Kotlin. ViewModel은 service 연결/UI flow orchestration. 통계는 UI 밖에 둔다. background 60분 측정을 위해 location foreground service가 수집/세션을 소유한다. 불필요한 repository/use-case 계층이나 현재 사용하지 않는 PositionCorrector 추상화는 만들지 않는다. 후속 filtering, sensorfusion, inference를 별도로 추가한다. pure Kotlin은 향후 Compose Multiplatform에서 재사용한다.
 
 ## 9. Development Phases
-1. **현재** Device Information + Raw Static GNSS Benchmark: runtime 정보, precise permission, 5분 warm-up, 5/15/30/60분, 상태 머신, GT 거리/통계, 결과, CSV/JSON SAF export, raw measurement 수집 기반, local persistence, tests/build/lint.
-2. Visualization + Robust Statistics: error chart, scatter, rolling CEP95, 장시간 stability, TC58/TC501 export 비교.
+1. Device Information + Raw Static GNSS Benchmark: runtime 정보, precise permission, 5분 warm-up, 5/15/30/60분, 상태 머신, GT 거리/통계, 결과, CSV/JSON SAF export, raw measurement 수집 기반, local persistence, tests/build/lint.
+2. **현재** Visualization + Robust Statistics: 실시간 cm 단위 CEP95, error chart, scatter, rolling CEP95, 수신 공백, 저장 세션 재열람 및 TC58/TC501 JSON export 비교.
 3. Classical Correction: outlier, EMA, Kalman, raw/corrected A/B.
 4. GNSS Quality Features: C/N0/constellation/frequency/satellite-aware correction.
 5. IMU Sensor Fusion: accelerometer/gyro/GNSS, stationary/moving detection.

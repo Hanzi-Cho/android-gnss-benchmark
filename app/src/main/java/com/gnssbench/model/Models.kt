@@ -16,8 +16,8 @@ data class SatelliteSnapshot(val elapsedNanos: Long, val satellites: List<Satell
 data class Fix(val wallTimeMillis: Long, val elapsedNanos: Long, val coordinate: Coordinate, val altitudeM: Double?, val accuracyM: Double?, val speedMps: Double?, val bearingDeg: Double?, val mock: Boolean = false)
 data class Sample(val fix: Fix, val receivedNanos: Long, val phase: Phase, val errorM: Double, val satellites: SatelliteSnapshot?)
 enum class Phase { Idle, WarmingUp, Measuring, Completed, Error }
-data class Config(val groundTruth: Coordinate, val durationMinutes: Int = 30, val warmupSeconds: Int = 300) {
-    init { require(durationMinutes in listOf(5, 15, 30, 60)); require(warmupSeconds in listOf(0, 300)) }
+data class Config(val groundTruth: Coordinate, val durationMinutes: Int = 30, val warmupSeconds: Int = 300, val groundTruthSource: String = "", val groundTruthUncertaintyM: Double? = null) {
+    init { require(durationMinutes in listOf(5, 15, 30, 60)); require(warmupSeconds in listOf(0, 300)); require(groundTruthUncertaintyM == null || (groundTruthUncertaintyM.isFinite() && groundTruthUncertaintyM >= 0)) }
     val warmupNanos get() = warmupSeconds * 1_000_000_000L
     val measurementNanos get() = durationMinutes * 60_000_000_000L
 }

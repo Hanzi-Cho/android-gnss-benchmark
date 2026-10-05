@@ -9,6 +9,7 @@ import android.os.*
 import androidx.core.app.NotificationCompat
 import com.gnssbench.BuildConfig
 import com.gnssbench.analysis.Statistics
+import com.gnssbench.analysis.LiveAnalysis
 import com.gnssbench.model.*
 import com.gnssbench.recording.*
 import com.gnssbench.session.BenchmarkEngine
@@ -19,7 +20,7 @@ import org.json.JSONObject
 import java.io.File
 
 data class BenchmarkState(val phase: Phase = Phase.Idle, val config: Config? = null, val elapsedSeconds: Long = 0, val remainingSeconds: Long = 0,
-    val measurementElapsedSeconds: Long = 0, val latest: Sample? = null, val satellites: SatelliteSnapshot? = null, val statistics: Statistics? = null,
+    val measurementElapsedSeconds: Long = 0, val latest: Sample? = null, val satellites: SatelliteSnapshot? = null, val statistics: Statistics? = null, val analysis: LiveAnalysis = LiveAnalysis(),
     val rejected: Int = 0, val rawEvents: Int = 0, val message: String = "정확한 위치 권한을 허용한 뒤 시작하세요.", val hardwareModel: String = "미보고", val hardwareYear: String = "미보고", val providerEnabled: Boolean = false, val savedFile: String? = null) {
     val active get() = phase == Phase.WarmingUp || phase == Phase.Measuring
 }
@@ -49,7 +50,8 @@ class BenchmarkService : Service() {
         if (engine?.active == true) return START_NOT_STICKY
         try {
             require(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) { "정확한 위치 권한이 필요합니다. 앱 설정 > 권한 > 위치 > 정확한 위치를 허용하세요." }
-            val config = Config(Coordinate(intent!!.getDoubleExtra("lat", Double.NaN), intent.getDoubleExtra("lon", Double.NaN)), intent.getIntExtra("minutes", 30), if (BuildConfig.DEBUG && intent.getBooleanExtra("skip", false)) 0 else 300)
+            val config = Config(Coordinate(intent!!.getDoubleExtra("lat", Double.NaN), intent.getDoubleExtra("lon", Double.NaN)), intent.getIntExtra("minutes", 30), if (BuildConfig.DEBUG && intent.getBooleanExtra("skip", false)) 0 else 300,
+                intent.getStringExtra("gtSource") ?: "", if (intent.hasExtra("gtUncertainty")) intent.getDoubleExtra("gtUncertainty", Double.NaN) else null)
             startForeground(1, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
             finishing = false
             recordingError = null
@@ -97,7 +99,7 @@ class BenchmarkService : Service() {
         val now = SystemClock.elapsedRealtimeNanos()
         mutableState.value = mutableState.value.copy(phase = e.phase, elapsedSeconds = ((now - e.startNanos) / 1_000_000_000).coerceAtLeast(0),
             remainingSeconds = ((e.deadline - now + 999_999_999) / 1_000_000_000).coerceAtLeast(0),
-            measurementElapsedSeconds = ((now - e.measurementStart).coerceIn(0, e.config.measurementNanos) / 1_000_000_000), statistics = e.statistics, rejected = e.rejected)
+            measurementElapsedSeconds = ((now - e.measurementStart).coerceIn(0, e.config.measurementNanos) / 1_000_000_000), statistics = e.statistics, rejected = e.rejected, analysis = e.analysis(now))
     }
     private fun write(type: String, payload: JSONObject) {
         val file = journal ?: return
@@ -121,7 +123,7 @@ class BenchmarkService : Service() {
         if (finishing) return
         finishing = true
         val e = engine
-        e?.stop(error)
+        e?.stop(error, SystemClock.elapsedRealtimeNanos())
         handler.removeCallbacks(ticker)
         runCatching { collector?.stop() }
         collector = null
@@ -131,7 +133,7 @@ class BenchmarkService : Service() {
         mutableState.value = mutableState.value.copy(phase = if (error) Phase.Error else Phase.Completed, message = message)
         write("summary", json("status" to mutableState.value.phase.name, "reason" to message, "testEndWallTimeMillis" to System.currentTimeMillis(),
             "endElapsedRealtimeNanos" to SystemClock.elapsedRealtimeNanos(), "measurementElapsedSeconds" to mutableState.value.measurementElapsedSeconds,
-            "rejectedSamples" to e?.rejected, "rawEventCount" to mutableState.value.rawEvents, "statistics" to e?.statistics?.toJson()))
+            "rejectedSamples" to e?.rejected, "rawEventCount" to mutableState.value.rawEvents, "statistics" to e?.statistics?.toJson(), "liveAnalysis" to mutableState.value.analysis.toJson()))
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

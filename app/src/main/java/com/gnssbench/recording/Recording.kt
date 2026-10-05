@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.gnssbench.BuildConfig
 import com.gnssbench.analysis.Statistics
+import com.gnssbench.analysis.LiveAnalysis
 import com.gnssbench.model.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,6 +26,11 @@ fun Sample.toJson() = json("wallTimeMillis" to fix.wallTimeMillis, "elapsedRealt
 fun Statistics.toJson() = json("sampleCount" to count, "meanM" to meanM, "medianM" to medianM, "rmseM" to rmseM, "cep50M" to cep50M, "cep68M" to cep68M, "cep95M" to cep95M, "cep99M" to cep99M, "maxM" to maxM,
     "withinPercent" to JSONObject(withinPercent.mapKeys { it.key.toString() }))
 
+fun LiveAnalysis.toJson() = json("rollingWindowSeconds" to 60, "rollingCep95M" to rolling95M, "rollingSampleCount" to rollingCount,
+    "elapsedMeasurementSeconds" to elapsedSeconds, "occupiedOneSecondBins" to occupiedSeconds, "elapsedOneSecondBins" to totalSeconds,
+    "oneSecondBinCoveragePercent" to coveragePercent, "lastFixAgeSeconds" to lastFixAgeSeconds, "maxNoFixGapSeconds" to maxGapSeconds,
+    "empiricalWithinCep95Percent" to withinCep95Percent)
+
 /** Shared serial executor ensures export waits for all previously submitted journal writes. */
 object Recording {
     val io = Executors.newSingleThreadExecutor()
@@ -35,7 +41,8 @@ object Recording {
         append(file, "metadata", json("schemaVersion" to 1, "sessionId" to file.nameWithoutExtension, "manufacturer" to Build.MANUFACTURER, "model" to Build.MODEL, "hardware" to Build.HARDWARE,
             "androidVersion" to Build.VERSION.RELEASE, "apiLevel" to Build.VERSION.SDK_INT, "appVersion" to BuildConfig.VERSION_NAME,
             "testStartWallTimeMillis" to wallStart, "startElapsedRealtimeNanos" to monoStart,
-            "groundTruth" to json("latitude" to config.groundTruth.latitude, "longitude" to config.groundTruth.longitude),
+            "groundTruth" to json("latitude" to config.groundTruth.latitude, "longitude" to config.groundTruth.longitude, "source" to config.groundTruthSource, "declaredUncertaintyM" to config.groundTruthUncertaintyM),
+            "analysisDefinition" to json("rollingWindowSeconds" to 60, "rollingWindow" to "(t-60,t] measurement only", "coverage" to "occupied 1s bins / ceil(elapsed measurement seconds)", "cmDisplay" to "metres * 100; unit conversion, not accuracy guarantee"),
             "warmupSeconds" to config.warmupSeconds, "measurementDurationSeconds" to config.durationMinutes * 60,
             "provider" to "gps", "requestedIntervalMillis" to 1000, "percentileMethod" to "R7 linear (n-1)p", "distanceMethod" to "haversine mean radius 6371008.8 m", "errorUnits" to "m"))
         return file

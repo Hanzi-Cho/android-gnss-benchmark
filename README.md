@@ -1,4 +1,21 @@
-# GNSS Benchmark — Phase 1
+# GNSS Benchmark — Phase 2 / Live analysis
+
+## 실기기에서 바로 확인하는 오차
+
+Static Benchmark에서 Start하면 실시간 대시보드로 전환합니다. **누적 CEP95를 cm와 m로 크게 표시**하고 평균·중앙값·RMSE·최대 오차, 최근 60초 CEP95, 표본 수, 1초 구간 수신 비율, 마지막 fix 경과 및 최대 무수신 간격을 갱신합니다. cm는 단위 변환일 뿐 cm급 정밀도나 95% 신뢰구간을 의미하지 않습니다. 이 실험의 관측 오차 백분위수이며 GT가 잘못되면 실제 정확도를 판단할 수 없습니다.
+
+- 기본 프로토콜: 정지 상태 **warm-up 5분 + 측정 30분 = 총 35분**. 측정 구간 30분이 완료되면 해당 GT 기준 오차를 확인할 수 있습니다. 수신 불량으로 표본이 부족한 경우 그 사실도 함께 봐야 합니다.
+- GT 좌표와 선택적인 측량 방법/출처, 불확실성(m)을 입력합니다. 모르면 비워두면 미확인으로 표시합니다. 입력 불확실성을 실제 오차에 임의로 더하거나 빼지 않습니다.
+- 실시간 그래프: actual error / reported accuracy / rolling CEP95. 전체 시간 또는 최근 5분을 선택하고 그래프를 누르면 해당 표본 수치를 확인합니다. 3초 초과 수신 공백은 선을 끊습니다. reported accuracy는 Android의 68% 추정 반경으로 CEP95와 다른 지표입니다.
+- GT 중심 산점도: 동/북 방향 동일 축척, GT 십자가, 누적 CEP95 원, 마지막 위치. 큰 오차도 축에 포함합니다. 표시 점이 많으면 시각화만 줄이고 통계·export는 전체 표본을 유지합니다.
+- 최근 60초는 `(t-60,t]`의 시간 구간입니다. 처음에는 60초 미만의 표본만 존재하며, 무수신이 지속되면 rolling 지표는 —가 됩니다. 과거 값을 현재 값으로 채우지 않습니다.
+- 화면 켜짐 유지 옵션을 제공합니다. 화면을 끄더라도 foreground service가 수집을 담당하지만 제조사별 정책은 실기기 검증이 필요합니다.
+
+## 저장 세션 재열람 / 기기 비교
+
+상단 NEXT로 **Sessions / Compare**를 엽니다. 내부 저장 목록에서 A로 열기/B로 비교를 선택하거나, 두 기기의 JSON export를 각각 가져옵니다. metadata와 측정 좌표를 읽어 같은 계산 코드로 통계를 재계산합니다. 원시 관측 배열은 streaming parser가 건너뛰므로 모든 raw event를 메모리에 올리지 않습니다. 시간 순서나 좌표가 잘못된 파일은 오류를 표시합니다. 불러오기는 최대 50,000개 위치 표본을 지원합니다. CSV import는 제공하지 않으며 CSV export는 유지됩니다.
+
+A/B CEP95·RMSE·최대 오차·표본 수·측정시간·warm-up 및 각 그래프를 화면에서 비교합니다. protocol 불일치를 표시하며 환경/GT/배치가 같았다고 자동 판단하지 않습니다. 정상 종료 기록이 없으면 중단 상태로 표시합니다. 측정 중 파일 재열람은 비활성화됩니다. 내부에서 선택한 A 세션은 개별 CSV/JSON export가 가능하며 기존 최근 세션 export도 유지됩니다.
 
 Zebra TC58과 TC501에서 **동일 APK**로 GPS_PROVIDER 위치를 수집하고, 독립적인 Ground Truth(GT)와 비교하는 offline-first 정지 benchmark 앱입니다. 지도/Google Maps API key/네트워크 권한은 사용하지 않습니다. Android GNSS 위치해를 그대로 baseline으로 쓰며 원시 관측으로 자체 위치해를 푸는 앱은 아닙니다. 보정·IMU·LiteRT는 후속 phase입니다.
 
@@ -55,7 +72,7 @@ SERIAL은 `adb devices`의 실제 식별자로 바꿉니다. 한 번 빌드한 �
 
 세션은 앱 내부 `files/sessions/*.jsonl`에 순서대로 저장됩니다. location/위성/raw event를 독립적으로 기록하며 파일 쓰기는 별도 단일 I/O executor에서 처리합니다. 앱 삭제 시 내부 파일도 삭제되므로 필요한 결과는 export하세요. 데이터에는 정확한 위치가 포함됩니다.
 
-측정 종료 후 JSON export 또는 CSV export → 시스템 파일 선택기에서 이름과 저장 위치를 정합니다. broad storage permission은 없습니다. 이전 프로세스가 종료되었거나 Reset했어도 **최근 저장된 세션**을 export할 수 있습니다. 내보내기 성공 메시지를 확인합니다. 이전 세션 파일은 내부 보존하지만 Phase 1 UI는 최근 세션만 export하므로 각 실험 직후 내보내세요.
+측정 종료 후 JSON export 또는 CSV export → 시스템 파일 선택기에서 이름과 저장 위치를 정합니다. broad storage permission은 없습니다. 이전 프로세스가 종료되었거나 Reset했어도 **최근 저장된 세션**을 export할 수 있습니다. 내보내기 성공 메시지를 확인합니다. 이전 세션은 Sessions / Compare에서 A로 열고 개별 export할 수 있습니다.
 
 JSON schemaVersion 1: `metadata`, `samples`, `satellites`, `rawObservations`, `events`, `recoveryWarnings`, `summary` 배열. 보통 metadata/summary는 각 1개입니다. metadata는 기기/앱 버전, GT, 시작 시각, warm-up/측정 설정, 거리/percentile 정의를 포함합니다. summary는 종료 시각, 상태/중단 이유, 실제 측정 경과와 통계입니다. sample의 phase로 WarmingUp/Measuring을 구분합니다.
 
